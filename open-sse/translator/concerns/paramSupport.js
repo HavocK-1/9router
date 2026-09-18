@@ -12,6 +12,10 @@ const STRIP_RULES = [
   { provider: "github", match: /gpt-5\.4/i, drop: ["temperature"] },
   // GitHub Copilot Claude (except opus/sonnet 4.6): thinking + reasoning_effort rejected. #713
   { provider: "github", match: (m) => /claude/i.test(m) && !/claude.*(opus|sonnet).*4\.6/i.test(m), drop: ["thinking", "reasoning_effort"] },
+  // Mistral's OpenAI-compatible API validates the body strictly and rejects the
+  // Anthropic/Z.ai-native `thinking` object with 422 extra_forbidden. It only
+  // accepts `reasoning_effort`, so drop any stray native thinking field.
+  { provider: "mistral", drop: ["thinking"] },
   // Cloudflare Workers AI: content must be plain string, rejects OpenAI content-part array (#1926)
   { provider: "cloudflare-ai", flattenContent: true },
   // MiMo Desktop Preview models (account-service route): content must be plain string,

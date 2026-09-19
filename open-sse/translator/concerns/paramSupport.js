@@ -15,7 +15,10 @@ const STRIP_RULES = [
   // Mistral's OpenAI-compatible API validates the body strictly and rejects the
   // Anthropic/Z.ai-native `thinking` object with 422 extra_forbidden. It only
   // accepts `reasoning_effort`, so drop any stray native thinking field.
-  { provider: "mistral", drop: ["thinking"] },
+  // Clients replay the previous assistant turn in conversation history; Mistral
+  // rejects replayed reasoning fields on input messages with the same 422
+  // extra_forbidden, so strip them per-message too.
+  { provider: "mistral", drop: ["thinking"], dropMessageFields: ["reasoning_content", "reasoning"] },
   // Cloudflare Workers AI: content must be plain string, rejects OpenAI content-part array (#1926)
   { provider: "cloudflare-ai", flattenContent: true },
   // MiMo Desktop Preview models (account-service route): content must be plain string,
@@ -50,6 +53,16 @@ export function stripUnsupportedParams(provider, model, body) {
     if (!matches(rule, model)) continue;
     for (const key of rule.drop || []) {
       if (body[key] !== undefined) delete body[key];
+    }
+    // Strip per-message fields a provider rejects on input (e.g. Mistral 422
+    // extra_forbidden on replayed assistant reasoning_content).
+    if (rule.dropMessageFields && Array.isArray(body.messages)) {
+      for (const msg of body.messages) {
+        if (!msg || typeof msg !== "object") continue;
+        for (const key of rule.dropMessageFields) {
+          if (msg[key] !== undefined) delete msg[key];
+        }
+      }
     }
     // CF Workers AI oneOf root schema only accepts content as plain string (#1926)
     if (rule.flattenContent && Array.isArray(body.messages)) {

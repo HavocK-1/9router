@@ -132,6 +132,7 @@ export async function handleChat(request, clientRawRequest = null) {
         log,
         comboName: modelStr,
         judgeModel: comboStrategies[modelStr]?.judgeModel,
+        judgeReasoning: comboStrategies[modelStr]?.judgeReasoning,
         tuning: comboStrategies[modelStr]?.fusionTuning,
       });
     }

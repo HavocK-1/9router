@@ -6,6 +6,7 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { parseModel } from "./model.js";
+import { parseSuffix } from "../translator/concerns/thinkingUnified.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { peekStreamForContent, reconstructStream, isNoRetryFinish } from "./emptyFailover.js";
 import {
@@ -814,10 +815,11 @@ function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs })
  * @param {Object} options.log - Logger
  * @param {string} [options.comboName] - Combo name (logging)
  * @param {string} [options.judgeModel] - Judge model; falls back to panel[0]
+ * @param {string} [options.judgeReasoning] - Reasoning level forced on the judge call (e.g. "high")
  * @param {Object} [options.tuning] - Override FUSION_DEFAULTS (minPanel, grace, timeout)
  * @returns {Promise<Response>}
  */
-export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, tuning }) {
+export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, judgeReasoning, tuning }) {
   const panel = Array.isArray(models) ? models.filter(Boolean) : [];
   if (panel.length === 0) {
     return new Response(
@@ -893,8 +895,12 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
 
   // 4. Judge analyzes + writes one final answer (streams to client if requested).
   const judgeBody = appendUserTurn(body, buildJudgePrompt(answers));
-  log.info("FUSION", `Judging ${answers.length} answers with ${judge}`);
-  return handleSingleModel(judgeBody, judge);
+  // Optional per-combo reasoning level for the judge, applied through the standard
+  // "model(level)" suffix that applyThinking parses downstream. An explicit suffix
+  // already on the judge model wins over the configured level.
+  const judgeCall = judgeReasoning && !parseSuffix(judge).override ? `${judge}(${judgeReasoning})` : judge;
+  log.info("FUSION", `Judging ${answers.length} answers with ${judge}${judgeCall !== judge ? ` (reasoning: ${judgeReasoning})` : ""}`);
+  return handleSingleModel(judgeBody, judgeCall);
 }
 
 export {

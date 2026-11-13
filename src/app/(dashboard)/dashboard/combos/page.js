@@ -9,6 +9,7 @@ import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModa
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { resolveProviderId, AI_PROVIDERS } from "@/shared/constants/providers";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -667,6 +668,14 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
   const isSmart = current === "smart";
   const fusionTuning = strategy.fusionTuning || {};
   const expertTimeoutSec = Math.round((fusionTuning.panelHardTimeoutMs ?? 90000) / 1000);
+  const judgeReasoning = strategy.judgeReasoning || "";
+  // Reasoning levels valid for the effective judge (explicit pick, else first panel model).
+  const judgeLevels = (() => {
+    const effectiveJudge = judge || combo.models[0] || "";
+    const slash = effectiveJudge.indexOf("/");
+    if (slash <= 0) return null;
+    return getThinkingLevels(effectiveJudge.slice(0, slash), effectiveJudge.slice(slash + 1));
+  })();
   // The synced catalog is server-only, so resolving here would fall back to the
   // generic patterns and under-report the limits. getCaps carries the server's
   // answer for /api/models.
@@ -737,6 +746,17 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                   >
                     <span className="material-symbols-outlined text-[13px]">close</span>
                   </button>
+                )}
+                {judgeLevels && judgeLevels.length > 0 && (
+                  <>
+                    <span className="text-[11px] font-medium text-text-muted">Reasoning</span>
+                    <Select
+                      options={[{ value: "auto", label: "Auto" }, ...judgeLevels.map((l) => ({ value: l, label: l }))]}
+                      value={judgeReasoning || "auto"}
+                      onChange={(e) => onSetStrategy({ judgeReasoning: e.target.value === "auto" ? "" : e.target.value })}
+                      selectClassName="py-0.5 text-[11px]"
+                    />
+                  </>
                 )}
                 <button
                   onClick={() => setShowTuningModal(true)}

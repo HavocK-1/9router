@@ -213,4 +213,34 @@ describe("fusion combo", () => {
     // Flattened tool_result
     expect(panelBody.messages[2].content).toBe("[Tool result: done]");
   });
+
+  it("appends the configured reasoning level to the judge model as a (level) suffix", async () => {
+    const seen = [];
+    const handleSingleModel = vi.fn(async (_body, model) => { seen.push(model); return okResponse(`ans-${model}`); });
+    await handleFusionChat({
+      body: { messages: [{ role: "user", content: "Q" }] },
+      models: ["p/a", "p/b"],
+      handleSingleModel,
+      log,
+      judgeModel: "p/judge",
+      judgeReasoning: "high",
+      tuning: { minPanel: 2, stragglerGraceMs: 50, panelHardTimeoutMs: 5000 },
+    });
+    expect(seen.at(-1)).toBe("p/judge(high)");
+  });
+
+  it("lets an explicit suffix on the judge model win over the configured level", async () => {
+    const seen = [];
+    const handleSingleModel = vi.fn(async (_body, model) => { seen.push(model); return okResponse(`ans-${model}`); });
+    await handleFusionChat({
+      body: { messages: [{ role: "user", content: "Q" }] },
+      models: ["p/a", "p/b"],
+      handleSingleModel,
+      log,
+      judgeModel: "p/judge(max)",
+      judgeReasoning: "high",
+      tuning: { minPanel: 2, stragglerGraceMs: 50, panelHardTimeoutMs: 5000 },
+    });
+    expect(seen.at(-1)).toBe("p/judge(max)");
+  });
 });
